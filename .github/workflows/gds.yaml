@@ -1,0 +1,64 @@
+name: gds
+
+on:
+  push:
+  workflow_dispatch:
+    inputs:
+      verilog:
+        description: "Build custom verilog, paste base64 encoded verilog. Top module name must be tt_um_vga_example"
+      # vgaproject:
+      #   description: "Build custom verilog, paste base64 encoded export from vga playground"
+
+jobs:
+  gds:
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: Replace tt_um_vga_example.v
+        run: |
+          if test -n "$VERILOG"; then echo "$VERILOG" | base64 -d > src/tt_um_vga_example.v; fi
+          pwd
+          ls -al
+          ls -al src
+          ls -al src/tt_um_vga_example.v
+          echo "Contents of src/tt_um_vga_example.v:"
+          cat src/tt_um_vga_example.v
+        env:
+          VERILOG: ${{ inputs.verilog }}
+
+      - name: Build GDS
+        uses: TinyTapeout/tt-gds-action@tt08
+        with:
+          flow: openlane2
+
+  precheck:
+    needs: gds
+    runs-on: ubuntu-latest
+    steps:
+      - name: Run Tiny Tapeout Precheck
+        uses: TinyTapeout/tt-gds-action/precheck@tt08
+
+  gl_test:
+    needs: gds
+    runs-on: ubuntu-latest
+    steps:
+      - name: checkout repo
+        uses: actions/checkout@v4
+        with:
+          submodules: recursive
+
+      - name: GL test
+        uses: TinyTapeout/tt-gds-action/gl_test@tt08
+
+  viewer:
+    needs: gds
+    runs-on: ubuntu-latest
+    permissions:
+      pages: write      # to deploy to Pages
+      id-token: write   # to verify the deployment originates from an appropriate source
+    steps:
+      - uses: TinyTapeout/tt-gds-action/viewer@tt08
